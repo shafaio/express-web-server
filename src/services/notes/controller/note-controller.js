@@ -4,10 +4,12 @@ import NoteRepositories from '../repositories/note-repositories.js';
 
 export const createNote = async (req, res, next) => {
   const { title, body, tags } = req.validated;
+  const { id: owner } = req.user;
   const note = await NoteRepositories.createNote({
     title,
     body,
     tags,
+    owner,
   });
 
   if (!note) {
@@ -18,13 +20,22 @@ export const createNote = async (req, res, next) => {
 };
 
 export const getAllNotes = async (req, res) => {
-  const notes = await NoteRepositories.getNotes();
+  const { id: owner } = req.user;
+
+  const notes = await NoteRepositories.getNotes(owner);
   return response(res, 200, 'Catatan sukses ditampilkan', notes);
 };
 
 export const getNoteById = async (req, res, next) => {
   const { id } = req.params;
+  const { id: owner } = req.user;
   const note = await NoteRepositories.getNoteById(id);
+
+  const isOwner = await NoteRepositories.verifyNoteOwner(id, owner);
+
+  if (!isOwner) {
+    return next(new InvariantError('Anda tidak berhak mengakses catatan ini'));
+  }
 
   if (!note) {
     return next(new NotFoundError('Catatan tidak ditemukan'));
@@ -37,12 +48,20 @@ export const editNoteById = async (req, res, next) => {
   const { id } = req.params;
   const { title, body, tags } = req.validated;
 
+  const { id: owner } = req.user;
+  const isOwner = await NoteRepositories.verifyNoteOwner(id, owner);
+
+  if (!isOwner) {
+    return next(new InvariantError('Anda tidak berhak mengakses catatan ini'));
+  }
+
   const note = await NoteRepositories.editNote({
     id,
     title,
     body,
     tags,
   });
+
   if (!note) {
     return next(new NotFoundError('Catatan tidak ditemukan'));
   }
@@ -52,6 +71,14 @@ export const editNoteById = async (req, res, next) => {
 
 export const deleteNoteById = async (req, res, next) => {
   const { id } = req.params;
+  const { id: owner } = req.user;
+
+  const isOwner = await NoteRepositories.verifyNoteOwner(id, owner);
+
+  if (!isOwner) {
+    return next(new InvariantError('Anda tidak berhak mengakses catatan ini'));
+  }
+
   const deletedNote = await NoteRepositories.deleteNote(id);
 
   if (!deletedNote) {
